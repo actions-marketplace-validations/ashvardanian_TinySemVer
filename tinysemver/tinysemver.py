@@ -370,6 +370,7 @@ def patch_with_regex(
 ) -> None:
     """Update a file by replacing the first matched group of every RegEx match with a new version."""
 
+    assert os.path.exists(file_path), f"File missing: {file_path}"
     with open(file_path, "r") as file:
         old_content = file.read()
 
