@@ -577,12 +577,16 @@ def bump(
     repository_path = os.path.abspath(path) if path else os.getcwd()
     assert os.path.isdir(os.path.join(repository_path, ".git")), f"Not a Git repository: {repository_path}"
 
-    def normalize_path(file_path: str) -> str:
-        if not file_path or len(file_path) == 0:
+    def normalize_path(file_path) -> str:
+        if not file_path:
             return None
-        if os.path.isabs(file_path):
-            return file_path
-        return os.path.join(repository_path, file_path)
+        # Convert `pathlib.Path` to `str`
+        file_path_str = str(file_path) if hasattr(file_path, '__fspath__') or isinstance(file_path, os.PathLike) else file_path
+        if not file_path_str or len(file_path_str) == 0:
+            return None
+        if os.path.isabs(file_path_str):
+            return file_path_str
+        return os.path.join(repository_path, file_path_str)
 
     changelog_file = normalize_path(changelog_file)
     version_file = normalize_path(version_file)
