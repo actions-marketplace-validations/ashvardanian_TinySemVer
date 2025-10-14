@@ -784,7 +784,7 @@ def main():
         print(f"! {e}")
         exit(1)
     except Exception as e:
-        traceback.print_exc(e)
+        traceback.print_exc()
         exit(1)
 
 
