@@ -242,3 +242,29 @@
 ### Patch
 
 - Fix: Missing symbol (a1b2b8a)
+
+## October 14, 2025: v3.0.0
+
+### Major
+
+- Break: Drop all AI features (734832e)
+
+### Minor
+
+- Add: Moving Major and Minor releases (d153cc8)
+- Add: Test and lock dependencies (0547fcc)
+
+### Patch
+
+- Improve: Make moving tags optional (02b4222)
+- Fix: Traceback exception handling (7a677d9)
+- Docs: Repo capitalization (2c56857)
+- Fix: Deprecated `re.sub` positional count (88db141)
+- Docs: Remove LLMs from positioning (6005b2a)
+- Make: Bump dependencies (0d757af)
+- Improve: Expose functionality in `__init__` (a7f8f3e)
+- Fix: Match `Feat` verb, as claimed in docs (19b939c)
+- Fix: Don't override `GITHUB_TOKEN` env var with nil (027d05e)
+- Fix: Return new semantic version (8b4939c)
+- Improve: Normalize `pathlib.Path` to `str` (83679b4)
+- Improve: Check file presence (29ed202)
