@@ -524,7 +524,7 @@ def bump(
     dry_run: bool = False,
     verbose: bool = False,
     major_verbs: List[str] = ["major", "breaking", "break"],
-    minor_verbs: List[str] = ["minor", "feature", "add", "new"],
+    minor_verbs: List[str] = ["minor", "feature", "feat", "add", "new"],
     patch_verbs: List[str] = ["patch", "fix", "bug", "improve", "docs", "make"],
     path: Optional[PathLike] = None,  # takes current directory as default
     changelog_file: Optional[PathLike] = None,  # relative or absolute path to the changelog file
@@ -621,7 +621,7 @@ def bump(
     ), f"Changelog file is missing or isn't a regular file: {changelog_file}"
 
     major_verbs = normalize_verbs(major_verbs, ["major", "breaking", "break"])
-    minor_verbs = normalize_verbs(minor_verbs, ["minor", "feature", "add", "new"])
+    minor_verbs = normalize_verbs(minor_verbs, ["minor", "feature", "feat", "add", "new"])
     patch_verbs = normalize_verbs(patch_verbs, ["patch", "fix", "bug", "improve", "docs", "make"])
 
     last_tag = get_last_tag(repository_path)
@@ -874,7 +874,7 @@ def main():
         args.verbose = os.environ.get("TINYSEMVER_VERBOSE", "").lower() == "true"
         args.push = os.environ.get("TINYSEMVER_PUSH", "").lower() == "true"
         args.major_verbs = os.environ.get("TINYSEMVER_MAJOR_VERBS") or "breaking,break,major"
-        args.minor_verbs = os.environ.get("TINYSEMVER_MINOR_VERBS") or "feature,minor,add,new"
+        args.minor_verbs = os.environ.get("TINYSEMVER_MINOR_VERBS") or "feature,feat,minor,add,new"
         args.patch_verbs = os.environ.get("TINYSEMVER_PATCH_VERBS") or "fix,patch,bug,improve,docs,make"
         args.default_branch = os.environ.get("TINYSEMVER_DEFAULT_BRANCH") or "main"
         args.changelog_file = os.environ.get("TINYSEMVER_CHANGELOG_FILE")
