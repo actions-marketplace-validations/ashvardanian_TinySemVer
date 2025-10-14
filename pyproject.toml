@@ -27,6 +27,21 @@ classifiers = [
 ]
 dependencies = ["rich >= 13.8.0"]
 
+[project.optional-dependencies]
+test = [
+    "pytest >= 7.0.0",
+    "pytest-cov >= 4.0.0",
+    "pytest-mock >= 3.10.0",
+]
+dev = [
+    "pytest >= 7.0.0",
+    "pytest-cov >= 4.0.0",
+    "pytest-mock >= 3.10.0",
+    "ruff >= 0.1.0",
+    "mypy >= 1.0.0",
+    "black >= 23.0.0",
+]
+
 [project.scripts]
 tinysemver = "tinysemver.tinysemver:main"
 
