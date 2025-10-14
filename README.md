@@ -101,7 +101,7 @@ jobs:
         persist-credentials: false # Only if main branch if protected
 
     - name: Run TinySemVer
-      uses: ashvardanian/tinysemver@v2.0.1
+      uses: ashvardanian/tinysemver@v3 # Automatically receives non-breaking updates
       with:
         major-verbs: 'breaking,break,major'
         minor-verbs: 'feature,minor,add,new'
@@ -140,6 +140,17 @@ If you need to update the version in multiple files, pass a multiline string wit
 ```
 
 For examples, consider checking StringZilla, USearch, and other libraries using TinySemVer.
+
+Since version 3.0.0, TinySemVer automatically maintains moving version tags, like `actions/checkout@v4`:
+
+```yaml
+uses: ashvardanian/tinysemver@v3       # Automatically gets non-breaking updates
+uses: ashvardanian/tinysemver@v3.0     # Automatically gets patch updates
+uses: ashvardanian/tinysemver@v3.0.0   # Pinned, never changes
+uses: ashvardanian/tinysemver@main     # Bleeding edge
+```
+
+This applies to both TinySemVer itself and any projects versioned with it that use `--push`.
 
 ### Security Considerations
 
