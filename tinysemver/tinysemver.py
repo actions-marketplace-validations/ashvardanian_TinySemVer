@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""TinySemVer is a tiny but mighty Semantic Versioning tool with AI, Drugs, and Rock-n-Roll.
+"""TinySemVer is a tiny minimalistic Semantic Versioning tool.
 
 This module traces the commit history of a Git repository after the last tag, and based 
 on the commit messages, it determines the type of version bump (major, minor, or patch).
@@ -67,39 +67,10 @@ class NoNewCommitsError(Exception):
     pass
 
 
-class MayContainVulnerability(Warning):
-    """Raised when the commit may contain a vulnerability."""
-
-    pass
-
-
-class MayContainLogicalBugs(Warning):
-    """Raised when the commit may contain logical bugs."""
-
-    pass
-
-
-class MayContainBreakingChange(Warning):
-    """Raised when the commit may contain a breaking change."""
-
-    pass
-
-
-class MayLackDocumentation(Warning):
-    """Raised when the commit may lack documentation updates."""
-
-    pass
-
-
-class UnknownCommitWarning(Warning):
-    """Something in the commit doesn't add up."""
-
-    pass
 
 
 _console = None  # Initialize global console variable
 _console_is_rich = True  # Initialize global console type variable
-_openai_client = None  # Initialize global OpenAI client variable
 
 
 def print_to_console(message: str) -> None:
@@ -118,16 +89,6 @@ def print_to_console(message: str) -> None:
         _console.print(message)
     else:
         print(message)
-
-
-def get_open_ai_client(base_url: str, api_key: str):
-    # Create a global variable for the client
-    global _openai_client
-    if not _openai_client:
-        from openai import OpenAI
-
-        _openai_client = OpenAI(base_url=base_url, api_key=api_key)
-    return _openai_client
 
 
 def get_last_tag(repository_path: PathLike) -> str:
@@ -274,7 +235,8 @@ def create_tag(
     env["GIT_COMMITTER_EMAIL"] = user_email
     env["GIT_AUTHOR_NAME"] = user_name
     env["GIT_AUTHOR_EMAIL"] = user_email
-    env["GITHUB_TOKEN"] = github_token
+    if github_token:
+        env["GITHUB_TOKEN"] = github_token
 
     message = f"Release: {tag} [skip ci]"
     message += convert_commits_to_message(major_commits or [], minor_commits or [], patch_commits or [])
@@ -293,6 +255,27 @@ def create_tag(
 
     subprocess.run(["git", "tag", "-a", tag, "-m", message, new_commit_sha], cwd=repository_path, env=env)
     print_to_console(f"[bold green]Created new tag:[/bold green] {tag}")
+
+    # Create moving major and minor version tags for GitHub Actions compatibility
+    # This allows users to reference @v2 or @v2.1 instead of @v2.1.1
+    major_tag = f"v{version[0]}"
+    minor_tag = f"v{version[0]}.{version[1]}"
+
+    # Force-update major version tag (e.g., v2 -> v2.1.1)
+    subprocess.run(
+        ["git", "tag", "-fa", major_tag, "-m", f"Update {major_tag} to {tag}", new_commit_sha],
+        cwd=repository_path,
+        env=env,
+    )
+    print_to_console(f"[bold green]Updated major version tag:[/bold green] {major_tag} -> {tag}")
+
+    # Force-update minor version tag (e.g., v2.1 -> v2.1.1)
+    subprocess.run(
+        ["git", "tag", "-fa", minor_tag, "-m", f"Update {minor_tag} to {tag}", new_commit_sha],
+        cwd=repository_path,
+        env=env,
+    )
+    print_to_console(f"[bold green]Updated minor version tag:[/bold green] {minor_tag} -> {tag}")
     if push:
         url = None
         if github_token and github_repository:
@@ -315,12 +298,35 @@ def create_tag(
                 f"Failed to push the new commits to the remote repository: '{url}' with error: {push_result.stderr.decode('utf-8')}"
             )
 
-        push_result = subprocess.run(["git", "push", url, "--tag"], cwd=repository_path, capture_output=True, env=env)
+        # Push the specific version tag (e.g., v2.1.1)
+        push_result = subprocess.run(["git", "push", url, tag], cwd=repository_path, capture_output=True, env=env)
         if push_result.returncode != 0:
             raise RuntimeError(
-                f"Failed to push the new tag to the remote repository: '{url}' with error: {push_result.stderr.decode('utf-8')}"
+                f"Failed to push the tag '{tag}' to the remote repository: '{url}' with error: {push_result.stderr.decode('utf-8')}"
             )
-        print_to_console(f"[bold green]Pushed to:[/bold green] {url}")
+
+        # Force-push the major version tag (e.g., v2)
+        push_result = subprocess.run(
+            ["git", "push", url, major_tag, "--force"], cwd=repository_path, capture_output=True, env=env
+        )
+        if push_result.returncode != 0:
+            raise RuntimeError(
+                f"Failed to push major tag '{major_tag}' to the remote repository: '{url}' with error: {push_result.stderr.decode('utf-8')}"
+            )
+
+        # Force-push the minor version tag (e.g., v2.1)
+        push_result = subprocess.run(
+            ["git", "push", url, minor_tag, "--force"], cwd=repository_path, capture_output=True, env=env
+        )
+        if push_result.returncode != 0:
+            raise RuntimeError(
+                f"Failed to push minor tag '{minor_tag}' to the remote repository: '{url}' with error: {push_result.stderr.decode('utf-8')}"
+            )
+
+        print_to_console(f"[bold green]Pushed tags to:[/bold green] {url}")
+        print_to_console(f"[bold green]  - Specific:[/bold green] {tag}")
+        print_to_console(f"[bold green]  - Major:[/bold green] {major_tag}")
+        print_to_console(f"[bold green]  - Minor:[/bold green] {minor_tag}")
 
         # Create a release using GitHub CLI if available
         if create_release and github_repository:
@@ -389,7 +395,7 @@ def patch_with_regex(
     # Compile the regex pattern with multiline support
     regex_pattern = re.compile(regex_pattern, re.MULTILINE)
     matches = list(re.finditer(regex_pattern, old_content))
-    new_content = re.sub(regex_pattern, replace_first_group, old_content, 1)
+    new_content = re.sub(regex_pattern, replace_first_group, old_content, count=1)
 
     non_empty_matches = [m for m in matches if len(m.group(0).strip())]
     assert len(non_empty_matches) > 0, f"No matches found in: {file_path}"
@@ -397,7 +403,7 @@ def patch_with_regex(
     for match in non_empty_matches:
         match_line = old_content.count("\n", 0, match.pos) + 1
         old_slice = match.group(0)
-        new_slice = re.sub(regex_pattern, replace_first_group, old_slice, 1)
+        new_slice = re.sub(regex_pattern, replace_first_group, old_slice, count=1)
 
         if verbose:
             print_to_console(f"[bold cyan]Will update file:[/bold cyan] {file_path}:{match_line}")
@@ -411,119 +417,12 @@ def patch_with_regex(
             print_to_console(f"[bold green]File updated successfully:[/bold green] {file_path}")
 
 
-def validate_commit_with_llms(
-    base_url: str,
-    api_key: str,
-    model: Optional[str],
-    commit: Commit,
-    change: ChangeDiff,
-) -> Optional[Warning]:
-    prompt = f"""
-        You are a professional coding assistant helping me to validate a commit message and its changes.
-        
-        1. Check if the changed code is likely to introduce logical bugs.
-        2. Check if the commit message is likely to contain a vulnerability.
-        3. Check if it contains a breaking change that is likely to affect users.
-        4. Check if the documentation wasn't updated for the changes made.
-
-        Don't let the commit message fool you, just look at the changes made in the code.
-        Reply by choosing any number from 0 to 4 and describe the issue, if anything is found.
-
-        0. No issues found.
-        1. The commit may introduce logical bugs, such as the overflow in ...
-        2. The commit may contain a vulnerability, such as the SQL injection in ...
-        3. The commit may contain a breaking change, such as the removal of ...
-        4. The commit may lack documentation updates for the changes made in function ...
-        """
-    message = f"""
-        #{commit.hash}: {commit.message}
-
-        Changes:
-
-        {change}
-        """
-    client = get_open_ai_client(base_url=base_url, api_key=api_key)
-    response = client.chat.completions.create(
-        messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": message},
-        ],
-        max_tokens=256,
-        model=model,
-        stream=False,
-    )
-    response_text = response.choices[0].message.content
-    if response_text.startswith("0."):
-        return None
-    if response_text.startswith("1."):
-        return MayContainLogicalBugs(response_text)
-    if response_text.startswith("2."):
-        return MayContainVulnerability(response_text)
-    if response_text.startswith("3."):
-        return MayContainBreakingChange(response_text)
-    if response_text.startswith("4."):
-        return MayLackDocumentation(response_text)
-    return UnknownCommitWarning(response_text)
-
-
-def aggregate_release_notes_with_llms(
-    base_url: str,
-    api_key: str,
-    model: Optional[str],
-    github_repository: str,
-    commits: List[Commit],
-    changes: List[ChangeDiff],
-) -> str:
-
-    commits_with_hashes = "\n".join(f"- {commit.hash}: {commit.message}" for commit in commits)
-    prompt = f"""
-        You are a release notes generator for an advanced software project.
-
-        Aggregate the release notes for the upcoming version based on the commits and their 
-        changes replying in a GitHub-flavored Markdown format.
-
-        - Mention the new features, improvements, and bug fixes.
-        - Warn about potential breaking changes and vulnerabilities.
-        - Tag people and teams responsible for the changes.
-        - For the most important commits provide a link to the issue or pull request and 
-          a URL to that commit, like [commit](https://github.com/{github_repository}/commit/...).
-        - Don't guess anything, only use the information from the commits and their changes.
-        - Use inline math notation, like $\\beta=1$ or math blocks like the following, when needed:
-
-          ```math
-          \\S_i(A, B, \\alpha, \\beta) = \\alpha \\cdot A_i + \\beta \\cdot B_i
-          ```
-
-        - Use alerting quotes, like: [!CAUTION] or [!TIP], when needed.
-
-        Most importantly, be concise and informative.
-    """
-    header_message = f"""Commits:
-
-    {commits_with_hashes}
-    """
-    changes_messages = [f"#{commit.hash}: {commit.message}\n{change}" for commit, change in zip(commits, changes)]
-
-    client = get_open_ai_client(base_url=base_url, api_key=api_key)
-    response = client.chat.completions.create(
-        messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": header_message},
-            *[{"role": "user", "content": message} for message in changes_messages],
-        ],
-        max_tokens=2048,
-        model=model,
-        stream=False,
-    )
-    return response.choices[0].message.content
-
-
 def bump(
     *,  # enforce keyword-only arguments
     dry_run: bool = False,
     verbose: bool = False,
     major_verbs: List[str] = ["major", "breaking", "break"],
-    minor_verbs: List[str] = ["minor", "feature", "add", "new"],
+    minor_verbs: List[str] = ["minor", "feature", "feat", "add", "new"],
     patch_verbs: List[str] = ["patch", "fix", "bug", "improve", "docs", "make"],
     path: Optional[PathLike] = None,  # takes current directory as default
     changelog_file: Optional[PathLike] = None,  # relative or absolute path to the changelog file
@@ -537,9 +436,6 @@ def bump(
     push: bool = True,
     github_token: Optional[str] = None,
     github_repository: Optional[str] = None,
-    openai_base_url: str = "https://api.openai.com",
-    openai_api_key: Optional[str] = None,
-    openai_model: Optional[str] = None,
     default_branch: str = "main",
     create_release: bool = False,
 ) -> SemVer:
@@ -565,9 +461,6 @@ def bump(
         push (bool): If True, pushes the changes to the remote GitHub repository. Defaults to True.
         github_token (Optional[str]): The GitHub token for authentication. If None, it attempts to use the GH_TOKEN environment variable. Defaults to None.
         github_repository (Optional[str]): The GitHub repository in 'owner/repo' format. If None, it attempts to use the GH_REPOSITORY environment variable. Defaults to None.
-        openai_base_url (str): The OpenAI API base URL. Defaults to "https://api.openai.com".
-        openai_api_key (Optional[str]): The OpenAI API key. Defaults to None.
-        openai_model (Optional[str]): The OpenAI model to use for text generation. Defaults to None.
         default_branch (str): The default branch to push the changes to. Defaults to "main".
 
     Returns:
@@ -577,12 +470,16 @@ def bump(
     repository_path = os.path.abspath(path) if path else os.getcwd()
     assert os.path.isdir(os.path.join(repository_path, ".git")), f"Not a Git repository: {repository_path}"
 
-    def normalize_path(file_path: str) -> str:
-        if not file_path or len(file_path) == 0:
+    def normalize_path(file_path) -> str:
+        if not file_path:
             return None
-        if os.path.isabs(file_path):
-            return file_path
-        return os.path.join(repository_path, file_path)
+        # Convert `pathlib.Path` to `str`
+        file_path_str = str(file_path) if hasattr(file_path, '__fspath__') or isinstance(file_path, os.PathLike) else file_path
+        if not file_path_str or len(file_path_str) == 0:
+            return None
+        if os.path.isabs(file_path_str):
+            return file_path_str
+        return os.path.join(repository_path, file_path_str)
 
     changelog_file = normalize_path(changelog_file)
     version_file = normalize_path(version_file)
@@ -616,7 +513,7 @@ def bump(
     ), f"Changelog file is missing or isn't a regular file: {changelog_file}"
 
     major_verbs = normalize_verbs(major_verbs, ["major", "breaking", "break"])
-    minor_verbs = normalize_verbs(minor_verbs, ["minor", "feature", "add", "new"])
+    minor_verbs = normalize_verbs(minor_verbs, ["minor", "feature", "feat", "add", "new"])
     patch_verbs = normalize_verbs(patch_verbs, ["patch", "fix", "bug", "improve", "docs", "make"])
 
     last_tag = get_last_tag(repository_path)
@@ -683,43 +580,6 @@ def bump(
         for file_path, regex_pattern in update_patch_version_in:
             patch_with_regex(file_path, regex_pattern, str(new_version[2]), dry_run=dry_run, verbose=verbose)
 
-    # Now log the potential issues with the commits
-    if openai_api_key:
-        warnings_commits = []
-        warnings = []
-        changes = [get_diff_for_commit(repository_path, commit.hash) for commit in commits]
-        for commit, change in zip(commits, changes):
-            try:
-                warning = validate_commit_with_llms(
-                    base_url=openai_base_url,
-                    api_key=openai_api_key,
-                    model=openai_model,
-                    commit=commit,
-                    change=change,
-                )
-                if warning:
-                    warnings_commits.append(commit)
-                    warnings.append(warning)
-            except Exception as e:
-                print_to_console(f"Failed to validate commit: {commit.hash} with error: {str(e)}")
-                traceback.print_exc()
-
-        if len(warnings):
-            print_to_console("## Potential issues")
-            for commit, warning in zip(warnings_commits, warnings):
-                print_to_console(f"- Commit #{commit.hash}: {warning}")
-
-        release_notes = aggregate_release_notes_with_llms(
-            base_url=openai_base_url,
-            api_key=openai_api_key,
-            model=openai_model,
-            github_repository=github_repository,
-            commits=commits,
-            changes=changes,
-        )
-        print_to_console("## Generated release notes:")
-        print_to_console(release_notes)
-
     if not dry_run:
         create_tag(
             repository_path=repository_path,
@@ -735,6 +595,8 @@ def bump(
             minor_commits=minor_commits,
             patch_commits=patch_commits,
         )
+
+    return new_version
 
 
 def main():
@@ -838,19 +700,6 @@ def main():
             help="GitHub repository in the 'owner/repo' format, if not set will use GH_REPOSITORY env var",
         )
         parser.add_argument(
-            "--openai-base-url",
-            default="https://api.openai.com",
-            help="OpenAI API base URL",
-        )
-        parser.add_argument(
-            "--openai-api-key",
-            help="OpenAI API key for text generation",
-        )
-        parser.add_argument(
-            "--openai-model",
-            help="OpenAI model to use for text generation (e.g., 'text-davinci-003' or 'text-davinci-002')",
-        )
-        parser.add_argument(
             "--create-release",
             action="store_true",
             default=False,
@@ -867,7 +716,7 @@ def main():
         args.verbose = os.environ.get("TINYSEMVER_VERBOSE", "").lower() == "true"
         args.push = os.environ.get("TINYSEMVER_PUSH", "").lower() == "true"
         args.major_verbs = os.environ.get("TINYSEMVER_MAJOR_VERBS") or "breaking,break,major"
-        args.minor_verbs = os.environ.get("TINYSEMVER_MINOR_VERBS") or "feature,minor,add,new"
+        args.minor_verbs = os.environ.get("TINYSEMVER_MINOR_VERBS") or "feature,feat,minor,add,new"
         args.patch_verbs = os.environ.get("TINYSEMVER_PATCH_VERBS") or "fix,patch,bug,improve,docs,make"
         args.default_branch = os.environ.get("TINYSEMVER_DEFAULT_BRANCH") or "main"
         args.changelog_file = os.environ.get("TINYSEMVER_CHANGELOG_FILE")
@@ -897,9 +746,6 @@ def main():
         args.git_user_email = os.environ.get("TINYSEMVER_GIT_USER_EMAIL", "tinysemver@ashvardanian.com")
         args.github_token = os.environ.get("GITHUB_TOKEN")
         args.github_repository = os.environ.get("GITHUB_REPOSITORY")
-        args.openai_base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com")
-        args.openai_api_key = os.environ.get("OPENAI_API_KEY")
-        args.openai_model = os.environ.get("OPENAI_MODEL")
         args.create_release = os.environ.get("TINYSEMVER_CREATE_RELEASE", "").lower() == "true"
 
     # It's common for a CI pipeline to have multiple broken settings or missing files.
@@ -928,9 +774,6 @@ def main():
             git_user_email=args.git_user_email,
             github_token=args.github_token,
             github_repository=args.github_repository,
-            openai_base_url=args.openai_base_url,
-            openai_api_key=args.openai_api_key,
-            openai_model=args.openai_model,
             push=args.push,
             create_release=args.create_release,
         )

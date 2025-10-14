@@ -1,6 +1,6 @@
 ![TinySemVer Banner](https://github.com/ashvardanian/ashvardanian/blob/master/repositories/TinySemVer.jpg)
 
-__TinySemVer__ is a minimalistic [Semantic Versioning](https://semver.org/) package for projects following [Conventional Commits](https://www.conventionalcommits.org/) in a single short Python file, capable of generating changelogs and release notes with the use of OpenAI-compatible LLM APIs, or without them.
+__TinySemVer__ is a minimalistic [Semantic Versioning](https://semver.org/) package for projects following [Conventional Commits](https://www.conventionalcommits.org/) in a single short Python file.
 In plain English, if your commit messages look like `feat: add new feature` or `fix: bugfix`, this package will automate releasing new "GIT tags" based on the commit messages.
 Here is how to integrate it into your project CI:
 
@@ -78,19 +78,6 @@ Alternatively, you can just ask for `--help`:
 $ tinysemver --help
 ```
 
-## AI and Rock-n-Roll
-
-TinySemVer can leverage a language model to validate the commits and generate clean and infromative release notes.
-
-```sh
-$ tinysemver --verbose \
-    --github-repository 'ashvardanian/tinysemver' \
-    --openai-base-url 'https://api.groq.com/openai/v1' \
-    --openai-api-key 'GET_YOURSELF_A_KEY' \
-    --openai-model 'llama-3.2-11b-text-preview' \
-    --dry-run
-```
-
 ## Usage Details for the GitHub CI Action
 
 TinySemVer can be easily integrated into your GitHub Actions CI pipeline.
@@ -109,12 +96,12 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         persist-credentials: false # Only if main branch if protected
 
     - name: Run TinySemVer
-      uses: ashvardanian/tinysemver@v2.0.1
+      uses: ashvardanian/tinysemver@v3 # Automatically receives non-breaking updates
       with:
         major-verbs: 'breaking,break,major'
         minor-verbs: 'feature,minor,add,new'
@@ -135,7 +122,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main # Take the most recent updated version
 ```
@@ -153,6 +140,17 @@ If you need to update the version in multiple files, pass a multiline string wit
 ```
 
 For examples, consider checking StringZilla, USearch, and other libraries using TinySemVer.
+
+Since version 3.0.0, TinySemVer automatically maintains moving version tags, like `actions/checkout@v4`:
+
+```yaml
+uses: ashvardanian/tinysemver@v3       # Automatically gets non-breaking updates
+uses: ashvardanian/tinysemver@v3.0     # Automatically gets patch updates
+uses: ashvardanian/tinysemver@v3.0.0   # Pinned, never changes
+uses: ashvardanian/tinysemver@main     # Bleeding edge
+```
+
+This applies to both TinySemVer itself and any projects versioned with it that use `--push`.
 
 ### Security Considerations
 
