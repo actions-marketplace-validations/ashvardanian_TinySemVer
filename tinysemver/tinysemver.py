@@ -395,7 +395,7 @@ def patch_with_regex(
     # Compile the regex pattern with multiline support
     regex_pattern = re.compile(regex_pattern, re.MULTILINE)
     matches = list(re.finditer(regex_pattern, old_content))
-    new_content = re.sub(regex_pattern, replace_first_group, old_content, 1)
+    new_content = re.sub(regex_pattern, replace_first_group, old_content, count=1)
 
     non_empty_matches = [m for m in matches if len(m.group(0).strip())]
     assert len(non_empty_matches) > 0, f"No matches found in: {file_path}"
@@ -403,7 +403,7 @@ def patch_with_regex(
     for match in non_empty_matches:
         match_line = old_content.count("\n", 0, match.pos) + 1
         old_slice = match.group(0)
-        new_slice = re.sub(regex_pattern, replace_first_group, old_slice, 1)
+        new_slice = re.sub(regex_pattern, replace_first_group, old_slice, count=1)
 
         if verbose:
             print_to_console(f"[bold cyan]Will update file:[/bold cyan] {file_path}:{match_line}")
