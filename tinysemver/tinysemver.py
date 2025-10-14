@@ -274,7 +274,8 @@ def create_tag(
     env["GIT_COMMITTER_EMAIL"] = user_email
     env["GIT_AUTHOR_NAME"] = user_name
     env["GIT_AUTHOR_EMAIL"] = user_email
-    env["GITHUB_TOKEN"] = github_token
+    if github_token:
+        env["GITHUB_TOKEN"] = github_token
 
     message = f"Release: {tag} [skip ci]"
     message += convert_commits_to_message(major_commits or [], minor_commits or [], patch_commits or [])
