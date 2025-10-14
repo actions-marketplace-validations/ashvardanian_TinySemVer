@@ -62,6 +62,10 @@ inputs:
     description: "Create a GitHub release using the GitHub CLI"
     required: false
     default: "false"
+  push-moving-tags:
+    description: "Push moving major and minor version tags (requires force-push permissions)"
+    required: false
+    default: "false"
 runs:
   using: "composite"
   steps:
@@ -92,6 +96,7 @@ runs:
         GITHUB_REPOSITORY: ${{ github.repository }}
         TINYSEMVER_DEFAULT_BRANCH: ${{ inputs.default-branch }}
         TINYSEMVER_CREATE_RELEASE: ${{ inputs.create-release }}
+        TINYSEMVER_PUSH_MOVING_TAGS: ${{ inputs.push-moving-tags }}
       run: |
         cd $GITHUB_WORKSPACE
         python ${{ github.action_path }}/tinysemver/tinysemver.py

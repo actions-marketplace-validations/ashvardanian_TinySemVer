@@ -141,7 +141,7 @@ If you need to update the version in multiple files, pass a multiline string wit
 
 For examples, consider checking StringZilla, USearch, and other libraries using TinySemVer.
 
-Since version 3.0.0, TinySemVer automatically maintains moving version tags, like `actions/checkout@v4`:
+Since version 3.0.0, TinySemVer can optionally maintain moving version tags similar to `actions/checkout@v4`:
 
 ```yaml
 uses: ashvardanian/tinysemver@v3       # Automatically gets non-breaking updates
@@ -150,7 +150,20 @@ uses: ashvardanian/tinysemver@v3.0.0   # Pinned, never changes
 uses: ashvardanian/tinysemver@main     # Bleeding edge
 ```
 
-This applies to both TinySemVer itself and any projects versioned with it that use `--push`.
+This feature is disabled by default because it requires force-push permissions.
+To enable it, add `push-moving-tags: 'true'` and ensure your token has force-push access:
+
+```yaml
+    - name: Run TinySemVer
+      uses: ashvardanian/tinysemver@v3
+      with:
+        push: 'true'
+        push-moving-tags: 'true'
+        github-token: ${{ secrets.TINYSEMVER_TOKEN }}
+```
+
+When enabled, TinySemVer creates three tags: `v3` (major), `v3.0` (minor), and `v3.0.0` (specific).
+The default `GITHUB_TOKEN` typically lacks force-push permissions for protected branches.
 
 ### Security Considerations
 

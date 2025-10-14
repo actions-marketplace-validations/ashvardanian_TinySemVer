@@ -223,6 +223,7 @@ def create_tag(
     github_repository: Optional[str] = None,
     push: bool = False,
     create_release: bool = False,
+    push_moving_tags: bool = False,
     major_commits: List[Commit] = None,
     minor_commits: List[Commit] = None,
     patch_commits: List[Commit] = None,
@@ -256,26 +257,28 @@ def create_tag(
     subprocess.run(["git", "tag", "-a", tag, "-m", message, new_commit_sha], cwd=repository_path, env=env)
     print_to_console(f"[bold green]Created new tag:[/bold green] {tag}")
 
-    # Create moving major and minor version tags for GitHub Actions compatibility
+    # Optionally create moving major and minor version tags for GitHub Actions compatibility
     # This allows users to reference @v2 or @v2.1 instead of @v2.1.1
-    major_tag = f"v{version[0]}"
-    minor_tag = f"v{version[0]}.{version[1]}"
+    # Note: This requires force-push permissions
+    if push_moving_tags:
+        major_tag = f"v{version[0]}"
+        minor_tag = f"v{version[0]}.{version[1]}"
 
-    # Force-update major version tag (e.g., v2 -> v2.1.1)
-    subprocess.run(
-        ["git", "tag", "-fa", major_tag, "-m", f"Update {major_tag} to {tag}", new_commit_sha],
-        cwd=repository_path,
-        env=env,
-    )
-    print_to_console(f"[bold green]Updated major version tag:[/bold green] {major_tag} -> {tag}")
+        # Force-update major version tag (e.g., v2 -> v2.1.1)
+        subprocess.run(
+            ["git", "tag", "-fa", major_tag, "-m", f"Update {major_tag} to {tag}", new_commit_sha],
+            cwd=repository_path,
+            env=env,
+        )
+        print_to_console(f"[bold green]Updated major version tag:[/bold green] {major_tag} -> {tag}")
 
-    # Force-update minor version tag (e.g., v2.1 -> v2.1.1)
-    subprocess.run(
-        ["git", "tag", "-fa", minor_tag, "-m", f"Update {minor_tag} to {tag}", new_commit_sha],
-        cwd=repository_path,
-        env=env,
-    )
-    print_to_console(f"[bold green]Updated minor version tag:[/bold green] {minor_tag} -> {tag}")
+        # Force-update minor version tag (e.g., v2.1 -> v2.1.1)
+        subprocess.run(
+            ["git", "tag", "-fa", minor_tag, "-m", f"Update {minor_tag} to {tag}", new_commit_sha],
+            cwd=repository_path,
+            env=env,
+        )
+        print_to_console(f"[bold green]Updated minor version tag:[/bold green] {minor_tag} -> {tag}")
     if push:
         url = None
         if github_token and github_repository:
@@ -305,28 +308,34 @@ def create_tag(
                 f"Failed to push the tag '{tag}' to the remote repository: '{url}' with error: {push_result.stderr.decode('utf-8')}"
             )
 
-        # Force-push the major version tag (e.g., v2)
-        push_result = subprocess.run(
-            ["git", "push", url, major_tag, "--force"], cwd=repository_path, capture_output=True, env=env
-        )
-        if push_result.returncode != 0:
-            raise RuntimeError(
-                f"Failed to push major tag '{major_tag}' to the remote repository: '{url}' with error: {push_result.stderr.decode('utf-8')}"
-            )
+        print_to_console(f"[bold green]Pushed tag:[/bold green] {tag}")
 
-        # Force-push the minor version tag (e.g., v2.1)
-        push_result = subprocess.run(
-            ["git", "push", url, minor_tag, "--force"], cwd=repository_path, capture_output=True, env=env
-        )
-        if push_result.returncode != 0:
-            raise RuntimeError(
-                f"Failed to push minor tag '{minor_tag}' to the remote repository: '{url}' with error: {push_result.stderr.decode('utf-8')}"
-            )
+        # Optionally force-push the moving major and minor version tags
+        if push_moving_tags:
+            major_tag = f"v{version[0]}"
+            minor_tag = f"v{version[0]}.{version[1]}"
 
-        print_to_console(f"[bold green]Pushed tags to:[/bold green] {url}")
-        print_to_console(f"[bold green]  - Specific:[/bold green] {tag}")
-        print_to_console(f"[bold green]  - Major:[/bold green] {major_tag}")
-        print_to_console(f"[bold green]  - Minor:[/bold green] {minor_tag}")
+            # Force-push the major version tag (e.g., v2)
+            push_result = subprocess.run(
+                ["git", "push", url, major_tag, "--force"], cwd=repository_path, capture_output=True, env=env
+            )
+            if push_result.returncode != 0:
+                raise RuntimeError(
+                    f"Failed to push major tag '{major_tag}' to the remote repository: '{url}' with error: {push_result.stderr.decode('utf-8')}"
+                )
+
+            # Force-push the minor version tag (e.g., v2.1)
+            push_result = subprocess.run(
+                ["git", "push", url, minor_tag, "--force"], cwd=repository_path, capture_output=True, env=env
+            )
+            if push_result.returncode != 0:
+                raise RuntimeError(
+                    f"Failed to push minor tag '{minor_tag}' to the remote repository: '{url}' with error: {push_result.stderr.decode('utf-8')}"
+                )
+
+            print_to_console(f"[bold green]Pushed moving tags:[/bold green]")
+            print_to_console(f"[bold green]  - Major:[/bold green] {major_tag}")
+            print_to_console(f"[bold green]  - Minor:[/bold green] {minor_tag}")
 
         # Create a release using GitHub CLI if available
         if create_release and github_repository:
@@ -438,6 +447,7 @@ def bump(
     github_repository: Optional[str] = None,
     default_branch: str = "main",
     create_release: bool = False,
+    push_moving_tags: bool = False,
 ) -> SemVer:
     """Primary function used to update the files (version, changelog, etc.), create a new Git tag, push it to a GitHub repository.
     It can be used for dry-runs to preview the changes without actually creating a new tag.
@@ -591,6 +601,7 @@ def bump(
             github_repository=github_repository,
             push=push,
             create_release=create_release,
+            push_moving_tags=push_moving_tags,
             major_commits=major_commits,
             minor_commits=minor_commits,
             patch_commits=patch_commits,
@@ -705,6 +716,12 @@ def main():
             default=False,
             help="Create a GitHub release using the GitHub CLI",
         )
+        parser.add_argument(
+            "--push-moving-tags",
+            action="store_true",
+            default=False,
+            help="Push moving major and minor version tags (requires force-push permissions)",
+        )
         args = parser.parse_args()
     else:
 
@@ -747,6 +764,7 @@ def main():
         args.github_token = os.environ.get("GITHUB_TOKEN")
         args.github_repository = os.environ.get("GITHUB_REPOSITORY")
         args.create_release = os.environ.get("TINYSEMVER_CREATE_RELEASE", "").lower() == "true"
+        args.push_moving_tags = os.environ.get("TINYSEMVER_PUSH_MOVING_TAGS", "").lower() == "true"
 
     # It's common for a CI pipeline to have multiple broken settings or missing files.
     # For the best user experience, we want to catch all errors and print them at once,
@@ -776,6 +794,7 @@ def main():
             github_repository=args.github_repository,
             push=args.push,
             create_release=args.create_release,
+            push_moving_tags=args.push_moving_tags,
         )
     except NoNewCommitsError as e:
         print(f"! {e}")
