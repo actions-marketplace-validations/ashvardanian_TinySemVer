@@ -1,5 +1,5 @@
 name: "TinySemVer"
-description: "Semantic-Versioning with LLMs and without 300,000 lines of JS"
+description: "Semantic-Versioning... that doesn't need 300,000 lines of JS"
 branding:
   icon: "at-sign"
   color: "purple"
