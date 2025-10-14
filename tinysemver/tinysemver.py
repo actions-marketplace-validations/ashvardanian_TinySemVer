@@ -740,6 +740,8 @@ def bump(
             patch_commits=patch_commits,
         )
 
+    return new_version
+
 
 def main():
     """
