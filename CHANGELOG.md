@@ -268,3 +268,9 @@
 - Fix: Return new semantic version (8b4939c)
 - Improve: Normalize `pathlib.Path` to `str` (83679b4)
 - Improve: Check file presence (29ed202)
+
+## April 01, 2026: v3.0.1
+
+### Patch
+
+- Make: Refresh CI (f1cc2e5)
