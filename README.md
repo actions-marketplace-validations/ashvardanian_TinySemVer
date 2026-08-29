@@ -1,3 +1,5 @@
+# TinySemVer
+
 ![TinySemVer Banner](https://github.com/ashvardanian/ashvardanian/blob/master/repositories/TinySemVer.jpg)
 
 __TinySemVer__ is a minimalistic [Semantic Versioning](https://semver.org/) package for projects following [Conventional Commits](https://www.conventionalcommits.org/) in a single short Python file.
@@ -9,6 +11,13 @@ $ pip install tinysemver
 $ tinysemver --dry-run --verbose
 > Current version: 1.2.2
 > Next version: 1.3.0
+```
+
+Or run it straight from PyPI without installing anything, which is ideal for a local dry-run:
+
+```sh
+$ uvx tinysemver --dry-run --verbose      # one-off, nothing installed
+$ uv tool install tinysemver              # or keep it on your PATH, like pipx
 ```
 
 The `--dry-run` flag will only print the next version without changing any files.
@@ -164,6 +173,7 @@ To enable it, add `push-moving-tags: 'true'` and ensure your token has force-pus
 
 When enabled, TinySemVer creates three tags: `v3` (major), `v3.0` (minor), and `v3.0.0` (specific).
 The default `GITHUB_TOKEN` typically lacks force-push permissions for protected branches.
+If a moving tag can't be pushed, TinySemVer prints a warning and keeps going — by that point the version commit and the exact tag are already published, so the aliases must never abort a completed release.
 
 ### Security Considerations
 

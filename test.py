@@ -32,9 +32,7 @@ from tinysemver.tinysemver import (
 )
 
 
-# ============================================================================
-# Fixtures
-# ============================================================================
+# region Fixtures
 
 
 @pytest.fixture
@@ -83,9 +81,10 @@ def sample_file(tmp_path: Path) -> Path:
     return file_path
 
 
-# ============================================================================
-# Unit Tests - Version Parsing and Bumping
-# ============================================================================
+# endregion Fixtures
+
+
+# region Unit Tests - Version Parsing and Bumping
 
 
 class TestVersionParsing:
@@ -127,9 +126,10 @@ class TestVersionParsing:
         assert bump_version((5, 10, 20), "minor") == (5, 11, 0)
 
 
-# ============================================================================
-# Unit Tests - Commit Parsing
-# ============================================================================
+# endregion Unit Tests - Version Parsing and Bumping
+
+
+# region Unit Tests - Commit Parsing
 
 
 class TestCommitParsing:
@@ -237,9 +237,10 @@ class TestCommitParsing:
         assert "### Patch" in message
 
 
-# ============================================================================
-# Unit Tests - Regex Patching
-# ============================================================================
+# endregion Unit Tests - Commit Parsing
+
+
+# region Unit Tests - Regex Patching
 
 
 class TestRegexPatching:
@@ -283,10 +284,29 @@ class TestRegexPatching:
         with pytest.raises(AssertionError, match="File missing"):
             patch_with_regex(nonexistent, r"(.*)", "test", dry_run=False, verbose=False)
 
+    def test_patch_with_regex_all_occurrences(self, tmp_path):
+        """count=0 rewrites every match, not just the first."""
+        file_path = tmp_path / "README.md"
+        file_path.write_text('dep = "1.2.3"\ndep = "1.2.3"\ndep = "1.2.3"\n')
+        patch_with_regex(file_path, r'^dep = "(\d+\.\d+\.\d+)"', "2.0.0", dry_run=False, verbose=False, count=0)
+        content = file_path.read_text()
+        assert content.count('dep = "2.0.0"') == 3
+        assert "1.2.3" not in content
 
-# ============================================================================
-# Unit Tests - Git Operations
-# ============================================================================
+    def test_patch_with_regex_default_first_only(self, tmp_path):
+        """The default count leaves later matches alone - what the single-line version file relies on."""
+        file_path = tmp_path / "README.md"
+        file_path.write_text('dep = "1.2.3"\ndep = "1.2.3"\n')
+        patch_with_regex(file_path, r'^dep = "(\d+\.\d+\.\d+)"', "2.0.0", dry_run=False, verbose=False)
+        content = file_path.read_text()
+        assert content.count('dep = "2.0.0"') == 1
+        assert content.count('dep = "1.2.3"') == 1
+
+
+# endregion Unit Tests - Regex Patching
+
+
+# region Unit Tests - Git Operations
 
 
 class TestGitOperations:
@@ -305,6 +325,25 @@ class TestGitOperations:
 
         tag = get_last_tag(temp_git_repo)
         assert tag == "v0.2.0"
+
+    def test_get_last_tag_ignores_moving_aliases(self, temp_git_repo):
+        # The moving `v0` and `v0.1` aliases point at the same commit as the real release and are
+        # newer annotated tags, exactly as `push_moving_tags` leaves them - they must never win.
+        subprocess.run(
+            ["git", "tag", "-a", "v0", "-m", "Update v0 to v0.1.0", "v0.1.0^{}"],
+            cwd=temp_git_repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "tag", "-a", "v0.1", "-m", "Update v0.1 to v0.1.0", "v0.1.0^{}"],
+            cwd=temp_git_repo,
+            check=True,
+            capture_output=True,
+        )
+
+        tag = get_last_tag(temp_git_repo)
+        assert tag == "v0.1.0"
 
     def test_get_last_tag_no_tags(self, tmp_path):
         # Create a repo without tags
@@ -357,9 +396,10 @@ class TestGitOperations:
         assert "+line2" in diff
 
 
-# ============================================================================
-# Integration Tests - Full Workflow
-# ============================================================================
+# endregion Unit Tests - Git Operations
+
+
+# region Integration Tests - Full Workflow
 
 
 class TestFullWorkflow:
@@ -457,6 +497,34 @@ class TestFullWorkflow:
 
         assert new_version == (1, 0, 0)
         assert (temp_git_repo / "VERSION").read_text().strip() == "1.0.0"
+
+    def test_update_version_in_bumps_every_occurrence(self, temp_git_repo):
+        """Every line an `update_version_in` pattern matches is bumped, not just the first - the
+        ForkUnion README case where the dependency is shown several times and one snippet was left
+        pinning a stale version."""
+        readme = temp_git_repo / "README.md"
+        readme.write_text(
+            'dep = "0.1.0"\n'
+            'dep = { version = "0.1.0", features = ["portable"] }\n'
+            'dep = { version = "0.1.0", features = ["numa"] }\n'
+        )
+        subprocess.run(["git", "add", "-A"], cwd=temp_git_repo, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "fix: bug"], cwd=temp_git_repo, check=True, capture_output=True)
+
+        bump(
+            path=temp_git_repo,
+            dry_run=False,
+            verbose=False,
+            version_file=temp_git_repo / "VERSION",
+            changelog_file=temp_git_repo / "CHANGELOG.md",
+            update_version_in=[(str(readme), r'^dep = \{ version = "(\d+\.\d+\.\d+)"')],
+            push=False,
+        )
+
+        content = readme.read_text()
+        assert content.count('{ version = "0.1.1"') == 2  # both table-form lines moved together
+        assert '{ version = "0.1.0"' not in content        # neither left pinning the stale version
+        assert 'dep = "0.1.0"' in content                  # the bare-string line the pattern skips is untouched
 
     def test_bump_priority_major_over_minor(self, temp_git_repo):
         """Test that major takes priority when multiple commit types exist."""
@@ -558,9 +626,10 @@ class TestFullWorkflow:
             )
 
 
-# ============================================================================
-# Edge Case Tests
-# ============================================================================
+# endregion Integration Tests - Full Workflow
+
+
+# region Edge Case Tests
 
 
 class TestEdgeCases:
@@ -636,10 +705,14 @@ class TestEdgeCases:
             )
 
 
-# ============================================================================
-# Run tests
-# ============================================================================
+# endregion Edge Case Tests
+
+
+# region Run tests
 
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
+
+
+# endregion Run tests
